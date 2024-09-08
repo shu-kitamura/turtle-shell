@@ -9,11 +9,11 @@ use std::{
         Command,
     }
 };
-use error::ShellError;
 
 use crate::{
     builtin::*,
     cmdline::CommandLine,
+    error::ShellError,
 };
 
 fn main() {
