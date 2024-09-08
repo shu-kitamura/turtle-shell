@@ -32,10 +32,7 @@ fn main() {
         };
 
         let line: &str = input.trim();
-        let cli: CommandLine = match CommandLine::new(line) {
-            Some(cli) => cli,
-            None => continue
-        };
+        let cli: CommandLine = CommandLine::new(line);
         match execute_command(cli) {
             Ok(_) => {},
             Err(e) => eprintln!("tsh: {e}")
@@ -44,22 +41,28 @@ fn main() {
 }
 
 fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
-    if is_built_in(&cli.command) {
-        exec_built_in(&cli.command, cli.args)
-    } else {
-        let mut child: Child = match Command::new(&cli.command)
-                                        .args(cli.args)
-                                        .spawn() {
-            Ok(c) => c,
-            Err(e) => return Err(
-                ShellError::CommandExecError(cli.command, e.to_string())
-            )
-        };
-        match child.wait() {
-            Ok(_) => Ok(()), // ExitStatus が返るが、使用しないため _ とする
-            Err(e) => return Err(
-                ShellError::CommandExecError(cli.command, e.to_string())
-            )
+    for (cmd, args) in cli.commands {
+        if is_built_in(&cmd) {
+            match exec_built_in(&cmd, args) {
+                Ok(_) => {},
+                Err(e) => return Err(e)
+            }
+        } else {
+            let mut child: Child = match Command::new(&cmd)
+                                    .args(args)
+                                    .spawn() {
+                Ok(c) => c,
+                Err(e) => return Err(
+                    ShellError::CommandExecError(cmd, e.to_string())
+                )
+            };
+            match child.wait() {
+                Ok(_) => {},
+                Err(e) => return Err(
+                    ShellError::CommandExecError(cmd, e.to_string())
+                )
+            }
         }
     }
+    Ok(())
 }
