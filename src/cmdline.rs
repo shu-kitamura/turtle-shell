@@ -1,3 +1,4 @@
+/// コマンドラインの型
 #[derive(Debug, PartialEq)]
 pub struct CommandLine {
     pub command: String,

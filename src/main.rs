@@ -1,14 +1,16 @@
 mod cmdline;
 mod builtin;
+mod error;
 
 use std::{
     io::{self, Write},
     process::{
         Child,
         Command,
-        ExitStatus
     }
 };
+use error::ShellError;
+
 use crate::{
     builtin::*,
     cmdline::CommandLine,
@@ -41,19 +43,23 @@ fn main() {
     }
 }
 
-fn execute_command(cli: CommandLine) -> Result<ExitStatus, std::io::Error> {
+fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
     if is_built_in(&cli.command) {
         exec_built_in(&cli.command, cli.args)
     } else {
-        let mut child: Child = match Command::new(cli.command)
+        let mut child: Child = match Command::new(&cli.command)
                                         .args(cli.args)
                                         .spawn() {
             Ok(c) => c,
-            Err(e) => return Err(e)
+            Err(e) => return Err(
+                ShellError::CommandExecError(cli.command, e.to_string())
+            )
         };
         match child.wait() {
-            Ok(status) => Ok(status),
-            Err(e) => return Err(e),
+            Ok(_) => Ok(()), // ExitStatus が返るが、使用しないため _ とする
+            Err(e) => return Err(
+                ShellError::CommandExecError(cli.command, e.to_string())
+            )
         }
     }
 }

@@ -1,46 +1,70 @@
 use std::{
-    env::{home_dir, set_current_dir},
-    io::{Error, ErrorKind},
-    os::unix::process::ExitStatusExt,
-    process::ExitStatus
+    env::{self, set_current_dir},
+    path::PathBuf, str::FromStr
 };
+use dirs::home_dir;
+
+use crate::error::ShellError;
 
 pub fn is_built_in(command: &str) -> bool {
     match command {
-        "exit" => true,
-        "cd" => true,
+        "exit" | "cd" | "pwd" => true,
         _ => false,
     }
 }
 
-pub fn exec_built_in(command: &str, args: Vec<String>) -> Result<ExitStatus, Error> {
+pub fn exec_built_in(command: &str, args: Vec<String>) -> Result<(), ShellError> {
     match command {
         "exit" => exit(),
         "cd" => change_directory(args),
+        "pwd" => print_working_directory(),
         _ => unreachable!()
     }
 }
 
 /// exit コマンド
-fn exit() -> Result<ExitStatus, Error> {
+fn exit() -> Result<(), ShellError> {
     println!("tsh: bye-bye");
-    std::process::exit(0)
+    std::process::exit(0);
 }
 
-fn change_directory(args: Vec<String>) -> Result<ExitStatus, Error> {
-    if args.len() == 0 {
-        let home = home_dir().unwrap();
-        match set_current_dir(home) {
-            Ok(()) => Ok(ExitStatus::from_raw(0)),
-            Err(e) => Err(e)    
-        }
-    } else if args.len() == 1 {
-        match set_current_dir(args.get(0).unwrap()) {
-            Ok(()) => Ok(ExitStatus::from_raw(0)),
-            Err(e) => Err(e)
-        }
+/// cd コマンド
+fn change_directory(args: Vec<String>) -> Result<(), ShellError> {
+    // 引数が 2つ以上の場合、エラーを返す。
+    let usage: &str = "cd [DIR_NAME]";
+    if args.len() >= 2 {
+        return Err(ShellError::CommandExecError(
+            "cd".to_string(),
+            format!("Too many arguments are specified.\nUSAGE: {}", usage),
+        ))
+    }
+
+    // 引数のディレクトリをカレントディレクトリに設定
+    // 引数が指定されていない場合、ホームディレクトリをカレントディレクトリに設定
+    let path: PathBuf = if let Some(path) = args.get(0) {
+        PathBuf::from_str(&path).unwrap()
     } else {
-        Err(Error::new(ErrorKind::InvalidInput, "Too many arguments is inputed."))
+        home_dir().unwrap()
+    };
+
+    match set_current_dir(path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(
+            ShellError::CommandExecError("cd".to_string(), e.to_string())
+        )
+    }
+}
+
+/// pwd コマンド
+fn print_working_directory() -> Result<(), ShellError>{
+    match env::current_dir() {
+        Ok(path) => {
+            println!("{}", path.to_str().unwrap());
+            Ok(())
+        },
+        Err(e) => Err(
+            ShellError::CommandExecError("pwd".to_string(), e.to_string())
+        )
     }
 }
 
@@ -48,7 +72,10 @@ fn change_directory(args: Vec<String>) -> Result<ExitStatus, Error> {
 mod tests {
     use std::env::current_dir;
 
-    use crate::builtin::*;
+    use crate::{
+        builtin::*,
+        error::ShellError
+    };
     #[test]
     fn test_is_built_in() {
         // 組み込みコマンド(exit)を受け取るケース
@@ -56,19 +83,35 @@ mod tests {
         assert_eq!(actual_exit, true);
 
         // 組み込みではないコマンド(ls)を受け取るケース
-        let actual_ls = is_built_in("ls");
+        let actual_ls: bool = is_built_in("ls");
         assert_eq!(actual_ls, false);
     }
 
     #[test]
     fn test_change_directory() {
         // 引数 0 で実行するケース
-        let expect = home_dir().unwrap();
+        let expect: PathBuf = home_dir().unwrap();
         let _ = change_directory(vec![]);
         assert_eq!(current_dir().unwrap(), expect);
 
         // 引数 1 で実行するケース
         let _ = change_directory(vec![expect.to_str().unwrap().to_string()]);
         assert_eq!(current_dir().unwrap(), expect);
+
+        // 引数 2 で実行するケース (Error)
+        let expect_error: ShellError = ShellError::CommandExecError(
+            "cd".to_string(),
+            "Too many arguments are specified.\nUSAGE: cd [DIR_NAME]".to_string()
+        );
+        let actual_error: ShellError = change_directory(vec!["a".to_string(), "b".to_string()]).unwrap_err();
+        assert_eq!(actual_error, expect_error);
+
+        // 存在しないディレクトリを指定するケース (Error)
+        let expect_error: ShellError = ShellError::CommandExecError(
+            "cd".to_string(),
+            "No such file or directory (os error 2)".to_string()
+        );
+        let actual_error: ShellError = change_directory(vec!["NOT_EXIST_DIR".to_string()]).unwrap_err();
+        assert_eq!(actual_error, expect_error);
     }
 }
