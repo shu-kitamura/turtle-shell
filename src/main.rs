@@ -44,11 +44,10 @@ fn main() {
 fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
     let mut commands_peekable = cli.commands.iter().peekable();
     let mut prev: Option<Child> = None;
-    let cmd: &String = &"".to_string();
 
     while let Some((i, cmd, args)) = commands_peekable.next() {
-        if is_built_in(&cmd) {
-            match exec_built_in(i, &cmd, args.to_owned()) {
+        if is_built_in(cmd) {
+            match exec_built_in(i, cmd, args) {
                 Ok(_) => {},
                 Err(e) => return Err(
                     ShellError::CommandExecError(cmd.to_owned(), e.to_string())
@@ -76,13 +75,7 @@ fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
     }
 
     if let Some(mut final_command) = prev {
-        match final_command.wait() {
-            Ok(_) => {},
-            Err(e) => return Err(
-                ShellError::CommandExecError(cmd.to_owned(), e.to_string())
-            )
-        }
+        final_command.wait().unwrap();
     }
-
     Ok(())
 }
