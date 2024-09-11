@@ -1,7 +1,7 @@
 /// コマンドラインの型
 #[derive(Debug, PartialEq)]
 pub struct CommandLine {
-    pub commands: Vec<(String, Vec<String>)>
+    pub commands: Vec<(usize, String, Vec<String>)>
 }
 
 impl CommandLine {
@@ -28,12 +28,12 @@ fn parse_command(line: &str) -> Option<(String, Vec<String>)> {
 }
 
 /// コマンドラインをパースする
-fn parse_cli(cli:&str) -> Vec<(String, Vec<String>)> {
+fn parse_cli(cli:&str) -> Vec<(usize, String, Vec<String>)> {
     let commands: Vec<&str> = cli.split('|').map(|command| command.trim()).collect();
-    let mut parsed: Vec<(String, Vec<String>)> = Vec::new();
-    for command in commands {
+    let mut parsed: Vec<(usize, String, Vec<String>)> = Vec::new();
+    for (i, command) in commands.iter().enumerate() {
         if let Some((cmd, args)) = parse_command(command) {
-            parsed.push((cmd, args))
+            parsed.push((i, cmd, args))
         }
     }
     parsed
@@ -50,7 +50,7 @@ mod tests {
         // (1つのオプションを受け取る)
         let expect_ls: CommandLine = CommandLine {
             commands: vec![
-                ("ls".to_string(), vec!["-l".to_string()])
+                (0, "ls".to_string(), vec!["-l".to_string()])
             ],
         };
         let actual_ls: CommandLine = CommandLine::new("ls -l");
@@ -60,7 +60,7 @@ mod tests {
         // (複数のオプションを受け取る)
         let expect_grep: CommandLine = CommandLine {
             commands: vec![
-                ("grep".to_string(), vec!["-v".to_string(), "a.c".to_string(), "test.txt".to_string()])
+                (0, "grep".to_string(), vec!["-v".to_string(), "a.c".to_string(), "test.txt".to_string()])
             ],
         };
         let actual_grep: CommandLine = CommandLine::new("grep -v a.c test.txt");
@@ -69,7 +69,7 @@ mod tests {
         // pwd を受け取るケース
         // (オプションを受け取らない)
         let expect_pwd: CommandLine = CommandLine {
-            commands: vec![("pwd".to_string(),vec![])]
+            commands: vec![(0, "pwd".to_string(),vec![])]
         };
         let actual_pwd: CommandLine = CommandLine::new("pwd");
         assert_eq!(actual_pwd, expect_pwd);
@@ -78,12 +78,12 @@ mod tests {
     #[test]
     fn test_parse_cli() {
         // "ls -l | grep test" を受け取るケース
-        let expect: Vec<(String, Vec<String>)> = vec![
-            ("ls".to_string(), vec!["-l".to_string()]),
-            ("grep".to_string(), vec!["test".to_string()])
+        let expect: Vec<(usize, String, Vec<String>)> = vec![
+            (0, "ls".to_string(), vec!["-l".to_string()]),
+            (1, "grep".to_string(), vec!["test".to_string()])
         ];
 
-        let actual: Vec<(String, Vec<String>)> = parse_cli("ls -l | grep test");
+        let actual: Vec<(usize, String, Vec<String>)> = parse_cli("ls -l | grep test");
         assert_eq!(actual, expect);
     }
 }

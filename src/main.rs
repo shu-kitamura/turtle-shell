@@ -7,6 +7,7 @@ use std::{
     process::{
         Child,
         Command,
+        Stdio,
     }
 };
 
@@ -41,28 +42,47 @@ fn main() {
 }
 
 fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
-    for (cmd, args) in cli.commands {
+    let mut commands_peekable = cli.commands.iter().peekable();
+    let mut prev: Option<Child> = None;
+    let cmd: &String = &"".to_string();
+
+    while let Some((i, cmd, args)) = commands_peekable.next() {
         if is_built_in(&cmd) {
-            match exec_built_in(&cmd, args) {
+            match exec_built_in(i, &cmd, args.to_owned()) {
                 Ok(_) => {},
-                Err(e) => return Err(e)
+                Err(e) => return Err(
+                    ShellError::CommandExecError(cmd.to_owned(), e.to_string())
+                )
             }
         } else {
-            let mut child: Child = match Command::new(&cmd)
-                                    .args(args)
-                                    .spawn() {
-                Ok(c) => c,
-                Err(e) => return Err(
-                    ShellError::CommandExecError(cmd, e.to_string())
-                )
-            };
-            match child.wait() {
-                Ok(_) => {},
-                Err(e) => return Err(
-                    ShellError::CommandExecError(cmd, e.to_string())
-                )
-            }
+            let input: Stdio = prev.map_or(
+                Stdio::inherit(),
+                |child| Stdio::from(child.stdout.unwrap())
+            );
+
+            let output: Stdio = commands_peekable.peek().map_or(
+                Stdio::inherit(),
+                 |_| Stdio::piped()
+            );
+
+            let child: Child = Command::new(cmd)
+                                    .args(args.to_owned())
+                                    .stdin(input)
+                                    .stdout(output)
+                                    .spawn()
+                                    .unwrap();
+            prev = Some(child)
         }
     }
+
+    if let Some(mut final_command) = prev {
+        match final_command.wait() {
+            Ok(_) => {},
+            Err(e) => return Err(
+                ShellError::CommandExecError(cmd.to_owned(), e.to_string())
+            )
+        }
+    }
+
     Ok(())
 }
