@@ -32,8 +32,7 @@ fn main() {
             Err(e) => eprintln!("tsh: {e}")
         };
 
-        let line: &str = input.trim();
-        let cli: CommandLine = CommandLine::new(line);
+        let cli: CommandLine = CommandLine::new(&input);
         match execute_command(cli) {
             Ok(_) => {},
             Err(e) => eprintln!("tsh: {e}")
