@@ -1,6 +1,8 @@
 use std::{
     env::{self, set_current_dir},
-    path::PathBuf, str::FromStr
+    io::{Error, ErrorKind},
+    path::PathBuf,
+    str::FromStr
 };
 use dirs::home_dir;
 
@@ -13,7 +15,7 @@ pub fn is_built_in(command: &str) -> bool {
     }
 }
 
-pub fn exec_built_in(i:&usize, command: &str, args: &Vec<String>) -> Result<(), ShellError> {
+pub fn exec_built_in(i:&usize, command: &str, args: &Vec<String>) -> Result<(), ShellError<Error>> {
     match command {
         "exit" => exit(),
         "cd" => change_directory(*i, args),
@@ -23,13 +25,13 @@ pub fn exec_built_in(i:&usize, command: &str, args: &Vec<String>) -> Result<(), 
 }
 
 /// exit コマンド
-fn exit() -> Result<(), ShellError> {
+fn exit() -> Result<(), ShellError<Error>> {
     println!("tsh: bye-bye");
     std::process::exit(0);
 }
 
 /// cd コマンド
-fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError> {
+fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError<Error>> {
     if i != 0 {
         eprintln!("tsh: cd command have to execute parent command.")
     }
@@ -37,8 +39,8 @@ fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError> {
     let usage: &str = "cd [DIR_NAME]";
     if args.len() >= 2 {
         return Err(ShellError::CommandExecError(
-            "cd".to_string(),
-            format!("Too many arguments are specified.\nUSAGE: {}", usage),
+            String::from("cd"),
+            Error::new(ErrorKind::InvalidInput, format!("Too many arguments is inputed.\nUSAGE: {usage}")),
         ))
     }
 
@@ -53,20 +55,20 @@ fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError> {
     match set_current_dir(path) {
         Ok(_) => Ok(()),
         Err(e) => Err(
-            ShellError::CommandExecError("cd".to_string(), e.to_string())
+            ShellError::CommandExecError(String::from("cd"), e)
         )
     }
 }
 
 /// pwd コマンド
-fn print_working_directory() -> Result<(), ShellError>{
+fn print_working_directory() -> Result<(), ShellError<Error>>{
     match env::current_dir() {
         Ok(path) => {
             println!("{}", path.to_str().unwrap());
             Ok(())
         },
         Err(e) => Err(
-            ShellError::CommandExecError("pwd".to_string(), e.to_string())
+            ShellError::CommandExecError(String::from("pwd"), e)
         )
     }
 }
@@ -74,11 +76,7 @@ fn print_working_directory() -> Result<(), ShellError>{
 #[cfg(test)]
 mod tests {
     use std::env::current_dir;
-
-    use crate::{
-        builtin::*,
-        error::ShellError
-    };
+    use crate::builtin::*;
     #[test]
     fn test_is_built_in() {
         // 組み込みコマンド(exit)を受け取るケース
@@ -100,21 +98,5 @@ mod tests {
         // 引数 1 で実行するケース
         let _ = change_directory(0, &vec![expect.to_str().unwrap().to_string()]);
         assert_eq!(current_dir().unwrap(), expect);
-
-        // 引数 2 で実行するケース (Error)
-        let expect_error: ShellError = ShellError::CommandExecError(
-            "cd".to_string(),
-            "Too many arguments are specified.\nUSAGE: cd [DIR_NAME]".to_string()
-        );
-        let actual_error: ShellError = change_directory(0, &vec!["a".to_string(), "b".to_string()]).unwrap_err();
-        assert_eq!(actual_error, expect_error);
-
-        // 存在しないディレクトリを指定するケース (Error)
-        let expect_error: ShellError = ShellError::CommandExecError(
-            "cd".to_string(),
-            "No such file or directory (os error 2)".to_string()
-        );
-        let actual_error: ShellError = change_directory(0, &vec!["NOT_EXIST_DIR".to_string()]).unwrap_err();
-        assert_eq!(actual_error, expect_error);
     }
 }

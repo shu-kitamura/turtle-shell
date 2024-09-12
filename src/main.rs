@@ -3,7 +3,7 @@ mod builtin;
 mod error;
 
 use std::{
-    io::{self, Write},
+    io::{Error, self, Write},
     process::{
         Child,
         Command,
@@ -41,7 +41,7 @@ fn main() {
     }
 }
 
-fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
+fn execute_command(cli: CommandLine) -> Result<(), ShellError<Error>> {
     let mut commands_peekable = cli.commands.iter().peekable();
     let mut prev: Option<Child> = None;
 
@@ -49,9 +49,7 @@ fn execute_command(cli: CommandLine) -> Result<(), ShellError> {
         if is_built_in(cmd) {
             match exec_built_in(i, cmd, args) {
                 Ok(_) => {},
-                Err(e) => return Err(
-                    ShellError::CommandExecError(cmd.to_owned(), e.to_string())
-                )
+                Err(e) => return Err(e),
             }
         } else {
             let input: Stdio = prev.map_or(
