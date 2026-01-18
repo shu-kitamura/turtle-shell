@@ -6,8 +6,3 @@ description = "A simple shell written in Rust"
 repository = "https://github.com/shu-kitamura/turtle-shell"
 readme = "README.md"
 license = "MIT"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-dirs = "5.0"

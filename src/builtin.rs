@@ -1,10 +1,8 @@
 use std::{
-    env::{self, set_current_dir},
     io::{Error, ErrorKind},
     path::PathBuf,
     str::FromStr
 };
-use dirs::home_dir;
 
 use crate::error::ShellError;
 
@@ -35,6 +33,7 @@ fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError<Error
     if i != 0 {
         eprintln!("tsh: cd command have to execute parent command.")
     }
+
     // 引数が 2つ以上の場合、エラーを返す。
     let usage: &str = "cd [DIR_NAME]";
     if args.len() >= 2 {
@@ -49,10 +48,10 @@ fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError<Error
     let path: PathBuf = if let Some(path) = args.get(0) {
         PathBuf::from_str(&path).unwrap()
     } else {
-        home_dir().unwrap()
+        get_home_directory()?
     };
 
-    match set_current_dir(path) {
+    match std::env::set_current_dir(path) {
         Ok(_) => Ok(()),
         Err(e) => Err(
             ShellError::CommandExecError(String::from("cd"), e)
@@ -60,9 +59,21 @@ fn change_directory(i: usize, args: &Vec<String>) -> Result<(), ShellError<Error
     }
 }
 
+fn get_home_directory() -> Result<PathBuf, ShellError<Error>> {
+    match std::env::var("HOME") {
+        Ok(path) => Ok(PathBuf::from(path)),
+        Err(_) => Err(
+            ShellError::CommandExecError(
+                String::from("cd"),
+                Error::new(ErrorKind::NotFound, "Home directory is not found.")
+            )
+        )
+    }
+}
+
 /// pwd コマンド
 fn print_working_directory() -> Result<(), ShellError<Error>>{
-    match env::current_dir() {
+    match std::env::current_dir() {
         Ok(path) => {
             println!("{}", path.to_str().unwrap());
             Ok(())
@@ -91,7 +102,7 @@ mod tests {
     #[test]
     fn test_change_directory() {
         // 引数 0 で実行するケース
-        let expect: PathBuf = home_dir().unwrap();
+        let expect: PathBuf = get_home_directory().unwrap();
         let _ = change_directory(0, &vec![]);
         assert_eq!(current_dir().unwrap(), expect);
 
