@@ -99,11 +99,11 @@ mod tests {
     fn test_change_directory() {
         // 引数 0 で実行するケース
         let expect: PathBuf = get_home_directory().unwrap();
-        let _ = change_directory(0, &vec![]);
+        let _ = change_directory(0, &[]);
         assert_eq!(current_dir().unwrap(), expect);
 
         // 引数 1 で実行するケース
-        let _ = change_directory(0, &vec![expect.to_str().unwrap().to_string()]);
+        let _ = change_directory(0, &[expect.to_str().unwrap().to_string()]);
         assert_eq!(current_dir().unwrap(), expect);
     }
 }
