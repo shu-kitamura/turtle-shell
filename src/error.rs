@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    fmt::{self, Display, Debug},
+    fmt::{self, Debug, Display},
 };
 
 /// シェルの処理で発生するエラーを表す型
@@ -11,10 +11,15 @@ pub enum ShellError<E: ToString> {
 
 /// ShellErrorを表示するため、Displayトレイトを実装
 impl<E: ToString> Display for ShellError<E> {
-    fn fmt (&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ShellError::CommandExecError(cmd, err) => {
-                write!(f, "Error: The following Error is occured when execute '{}'.\n{}", cmd, err.to_string())
+                write!(
+                    f,
+                    "Error: The following Error is occured when execute '{}'.\n{}",
+                    cmd,
+                    err.to_string()
+                )
             }
         }
     }
