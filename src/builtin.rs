@@ -1,7 +1,6 @@
 use std::{
     io::{Error, ErrorKind},
     path::PathBuf,
-    str::FromStr,
 };
 
 use crate::error::ShellError;
@@ -30,7 +29,13 @@ fn exit() -> Result<(), ShellError<Error>> {
 /// cd コマンド
 fn change_directory(i: usize, args: &[String]) -> Result<(), ShellError<Error>> {
     if i != 0 {
-        eprintln!("tsh: cd command have to execute parent command.")
+        return Err(ShellError::CommandExecError(
+            String::from("cd"),
+            Error::new(
+                ErrorKind::InvalidInput,
+                "cd command have to execute parent command.",
+            ),
+        ));
     }
 
     // 引数が 2つ以上の場合、エラーを返す。
@@ -48,7 +53,7 @@ fn change_directory(i: usize, args: &[String]) -> Result<(), ShellError<Error>> 
     // 引数のディレクトリをカレントディレクトリに設定
     // 引数が指定されていない場合、ホームディレクトリをカレントディレクトリに設定
     let path: PathBuf = if let Some(path) = args.first() {
-        PathBuf::from_str(path).unwrap()
+        PathBuf::from(path.as_str())
     } else {
         get_home_directory()?
     };
@@ -73,7 +78,7 @@ fn get_home_directory() -> Result<PathBuf, ShellError<Error>> {
 fn print_working_directory() -> Result<(), ShellError<Error>> {
     match std::env::current_dir() {
         Ok(path) => {
-            println!("{}", path.to_str().unwrap());
+            println!("{}", path.to_string_lossy());
             Ok(())
         }
         Err(e) => Err(ShellError::CommandExecError(String::from("pwd"), e)),
@@ -83,7 +88,12 @@ fn print_working_directory() -> Result<(), ShellError<Error>> {
 #[cfg(test)]
 mod tests {
     use crate::builtin::*;
-    use std::env::current_dir;
+    use std::{
+        env::{current_dir, remove_var, set_current_dir, set_var, var},
+        sync::Mutex,
+    };
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
     #[test]
     fn test_is_built_in() {
         // 組み込みコマンド(exit)を受け取るケース
@@ -97,13 +107,71 @@ mod tests {
 
     #[test]
     fn test_change_directory() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let original_dir = current_dir().unwrap();
+        let original_home = var("HOME").ok();
+        let temp_home = std::env::temp_dir();
+        // Safety: tests serialize env changes with ENV_LOCK.
+        unsafe {
+            set_var("HOME", temp_home.to_string_lossy().to_string());
+        }
+
         // 引数 0 で実行するケース
-        let expect: PathBuf = get_home_directory().unwrap();
-        let _ = change_directory(0, &[]);
+        let expect = get_home_directory().unwrap();
+        change_directory(0, &[]).unwrap();
         assert_eq!(current_dir().unwrap(), expect);
 
         // 引数 1 で実行するケース
-        let _ = change_directory(0, &[expect.to_str().unwrap().to_string()]);
+        change_directory(0, &[expect.to_string_lossy().to_string()]).unwrap();
         assert_eq!(current_dir().unwrap(), expect);
+
+        set_current_dir(original_dir).unwrap();
+        // Safety: tests serialize env changes with ENV_LOCK.
+        unsafe {
+            if let Some(home) = original_home {
+                set_var("HOME", home);
+            } else {
+                remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    fn test_change_directory_too_many_args() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let err = change_directory(0, &[String::from("a"), String::from("b")]).unwrap_err();
+        assert!(err.to_string().contains("Too many arguments"));
+    }
+
+    #[test]
+    fn test_change_directory_in_pipeline() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let err = change_directory(1, &[]).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cd command have to execute parent command")
+        );
+    }
+
+    #[test]
+    fn test_get_home_directory_missing_home() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let original_home = var("HOME").ok();
+        // Safety: tests serialize env changes with ENV_LOCK.
+        unsafe {
+            remove_var("HOME");
+        }
+
+        let err = get_home_directory().unwrap_err();
+        assert!(err.to_string().contains("Home directory is not found"));
+
+        // Safety: tests serialize env changes with ENV_LOCK.
+        unsafe {
+            if let Some(home) = original_home {
+                set_var("HOME", home);
+            } else {
+                remove_var("HOME");
+            }
+        }
     }
 }
