@@ -44,20 +44,19 @@ fn main() {
 
 fn execute_command(cli: CommandLine) -> Result<(), ShellError<Error>> {
     let in_pipeline = cli.commands.len() > 1;
-    if in_pipeline {
-        if let Some(parsed) = cli
+    if in_pipeline
+        && let Some(parsed) = cli
             .commands
             .iter()
             .find(|parsed| is_built_in(parsed.name.as_str()))
-        {
-            return Err(ShellError::CommandExecError(
-                parsed.name.clone(),
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "built-in command cannot be used in pipeline.",
-                ),
-            ));
-        }
+    {
+        return Err(ShellError::CommandExecError(
+            parsed.name.clone(),
+            Error::new(
+                ErrorKind::InvalidInput,
+                "built-in command cannot be used in pipeline.",
+            ),
+        ));
     }
     let mut commands_peekable = cli.commands.iter().peekable();
     let mut prev: Option<(String, Child)> = None;
