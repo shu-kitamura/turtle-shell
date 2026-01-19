@@ -9,7 +9,7 @@ description: Review source code and create a report in Japanese
 - 目的 : ソースコードをレビューして、日本語のレポートを作成する
 - レビュー対象 : `src` ディレクトリ配下の `*.rs` ファイル(サブディレクトリも含む)
 - レビュー観点 : 可読性(命名・責務分離・関数/モジュール設計・コメント/エラーの読みやすさ)
-- レビュー結果 : `REVIEW.md` に記載する
+- レビュー結果 : `.skill-output/REVIEW.md` に記載する
 
 ## Point of review
 
@@ -33,7 +33,7 @@ description: Review source code and create a report in Japanese
 
 ## Output format
 
-- レビュー結果は `REVIEW.md` に日本語で記載する。ファイルが存在しない場合は新しく作成する。
+- レビュー結果は `.skill-output/REVIEW.md` に日本語で記載する。ファイルが存在しない場合は新しく作成する。
 - レビューの指摘は以下の形式で記載する。
   ```
   - [重要度] 問題点(1行要約)
