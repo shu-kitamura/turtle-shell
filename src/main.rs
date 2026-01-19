@@ -98,10 +98,10 @@ fn execute_command(cli: CommandLine) -> Result<(), ShellError<Error>> {
 
     let mut wait_error: Option<ShellError<Error>> = None;
     for (cmd, mut child) in children {
-        if let Err(err) = child.wait() {
-            if wait_error.is_none() {
-                wait_error = Some(ShellError::CommandExecError(cmd, err));
-            }
+        if let Err(err) = child.wait()
+            && wait_error.is_none()
+        {
+            wait_error = Some(ShellError::CommandExecError(cmd, err));
         }
     }
 
