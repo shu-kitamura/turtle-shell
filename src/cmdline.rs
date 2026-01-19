@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// コマンドラインの型
 #[derive(Debug, PartialEq)]
 pub struct CommandLine {
@@ -12,11 +14,32 @@ pub struct ParsedCommand {
     pub args: Vec<String>,
 }
 
-impl CommandLine {
-    pub fn new(rawline: &str) -> Self {
+#[derive(Debug, PartialEq)]
+pub struct CmdlineError {
+    message: String,
+}
+
+impl CmdlineError {
+    fn new(message: &str) -> Self {
         Self {
-            commands: parse_cli(rawline),
+            message: message.to_string(),
         }
+    }
+}
+
+impl fmt::Display for CmdlineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for CmdlineError {}
+
+impl CommandLine {
+    pub fn new(rawline: &str) -> Result<Self, CmdlineError> {
+        Ok(Self {
+            commands: parse_cli(rawline)?,
+        })
     }
 }
 
@@ -38,11 +61,31 @@ fn parse_command(line: &str) -> Option<(String, Vec<String>)> {
 }
 
 /// コマンドラインをパースする
-fn parse_cli(cli: &str) -> Vec<ParsedCommand> {
-    let commands = cli.split('|').map(|command| command.trim());
+fn parse_cli(cli: &str) -> Result<Vec<ParsedCommand>, CmdlineError> {
+    let parts: Vec<&str> = cli.split('|').collect();
     let mut parsed: Vec<ParsedCommand> = Vec::new();
-    for (i, command) in commands.enumerate() {
-        if let Some((cmd, args)) = parse_command(command) {
+
+    if parts.len() == 1 {
+        let trimmed = parts[0].trim();
+        if trimmed.is_empty() {
+            return Ok(parsed);
+        }
+        if let Some((cmd, args)) = parse_command(trimmed) {
+            parsed.push(ParsedCommand {
+                index: 0,
+                name: cmd,
+                args,
+            });
+        }
+        return Ok(parsed);
+    }
+
+    for (i, part) in parts.iter().enumerate() {
+        let trimmed = part.trim();
+        if trimmed.is_empty() {
+            return Err(CmdlineError::new("empty command in pipeline."));
+        }
+        if let Some((cmd, args)) = parse_command(trimmed) {
             parsed.push(ParsedCommand {
                 index: i,
                 name: cmd,
@@ -50,7 +93,7 @@ fn parse_cli(cli: &str) -> Vec<ParsedCommand> {
             })
         }
     }
-    parsed
+    Ok(parsed)
 }
 
 #[cfg(test)]
@@ -69,7 +112,7 @@ mod tests {
                 args: vec!["-l".to_string()],
             }],
         };
-        let actual_ls: CommandLine = CommandLine::new("ls -l");
+        let actual_ls: CommandLine = CommandLine::new("ls -l").unwrap();
         assert_eq!(actual_ls, expect_ls);
 
         // grep -v a.c test.txt を受け取るケース
@@ -81,7 +124,7 @@ mod tests {
                 args: vec!["-v".to_string(), "a.c".to_string(), "test.txt".to_string()],
             }],
         };
-        let actual_grep: CommandLine = CommandLine::new("grep -v a.c test.txt");
+        let actual_grep: CommandLine = CommandLine::new("grep -v a.c test.txt").unwrap();
         assert_eq!(actual_grep, expect_grep);
 
         // pwd を受け取るケース
@@ -93,7 +136,7 @@ mod tests {
                 args: vec![],
             }],
         };
-        let actual_pwd: CommandLine = CommandLine::new("pwd");
+        let actual_pwd: CommandLine = CommandLine::new("pwd").unwrap();
         assert_eq!(actual_pwd, expect_pwd);
     }
 
@@ -113,7 +156,14 @@ mod tests {
             },
         ];
 
-        let actual: Vec<ParsedCommand> = parse_cli("ls -l | grep test");
+        let actual: Vec<ParsedCommand> = parse_cli("ls -l | grep test").unwrap();
         assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn test_parse_cli_empty_command() {
+        assert!(parse_cli("ls |").is_err());
+        assert!(parse_cli("| ls").is_err());
+        assert!(parse_cli("ls || wc").is_err());
     }
 }

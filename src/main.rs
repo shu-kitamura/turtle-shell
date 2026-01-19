@@ -3,7 +3,7 @@ mod cmdline;
 mod error;
 
 use std::{
-    io::{self, Error, Write},
+    io::{self, Error, ErrorKind, Write},
     process::{Child, Command, Stdio},
 };
 
@@ -20,11 +20,21 @@ fn main() {
 
         let mut input: String = String::new();
         match io::stdin().read_line(&mut input) {
-            Ok(_) => {} // 読み込んだ byte数(usize型) が返るが、使用しないため _ とする
+            Ok(bytes) => {
+                if bytes == 0 {
+                    break;
+                }
+            }
             Err(e) => eprintln!("tsh: {e}"),
         };
 
-        let cli: CommandLine = CommandLine::new(&input);
+        let cli: CommandLine = match CommandLine::new(&input) {
+            Ok(cli) => cli,
+            Err(e) => {
+                eprintln!("tsh: {e}");
+                continue;
+            }
+        };
         match execute_command(cli) {
             Ok(_) => {}
             Err(e) => eprintln!("tsh: {e}"),
@@ -33,6 +43,22 @@ fn main() {
 }
 
 fn execute_command(cli: CommandLine) -> Result<(), ShellError<Error>> {
+    let in_pipeline = cli.commands.len() > 1;
+    if in_pipeline {
+        if let Some(parsed) = cli
+            .commands
+            .iter()
+            .find(|parsed| is_built_in(parsed.name.as_str()))
+        {
+            return Err(ShellError::CommandExecError(
+                parsed.name.clone(),
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "built-in command cannot be used in pipeline.",
+                ),
+            ));
+        }
+    }
     let mut commands_peekable = cli.commands.iter().peekable();
     let mut prev: Option<(String, Child)> = None;
     let mut children: Vec<(String, Child)> = Vec::new();
@@ -123,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_execute_command_nonexistent() {
-        let cli = CommandLine::new("this-command-does-not-exist");
+        let cli = CommandLine::new("this-command-does-not-exist").unwrap();
         assert!(execute_command(cli).is_err());
     }
 
@@ -133,7 +159,19 @@ mod tests {
             return;
         }
 
-        let cli = CommandLine::new("true | true");
+        let cli = CommandLine::new("true | true").unwrap();
         assert!(execute_command(cli).is_ok());
+    }
+
+    #[test]
+    fn test_execute_command_builtin_in_pipeline() {
+        let cli = CommandLine::new("pwd | wc").unwrap();
+        assert!(execute_command(cli).is_err());
+    }
+
+    #[test]
+    fn test_execute_command_cd_in_pipeline() {
+        let cli = CommandLine::new("cd | pwd").unwrap();
+        assert!(execute_command(cli).is_err());
     }
 }
