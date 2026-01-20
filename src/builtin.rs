@@ -64,6 +64,8 @@ fn change_directory(i: usize, args: &[String]) -> Result<(), ShellError<Error>> 
     }
 }
 
+/// ホームディレクトリを取得する
+/// cd コマンドで引数が指定されなかった場合に使用する
 fn get_home_directory() -> Result<PathBuf, ShellError<Error>> {
     match std::env::var("HOME") {
         Ok(path) => Ok(PathBuf::from(path)),
